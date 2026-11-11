@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Bookmark Studio — приватна бібліотека посилань із нотатками й тегами."
+      content="Bookmark Studio — a private link library with notes and tags."
     />
-    <title>Мої закладки — Bookmark Studio</title>
+    <title>My Bookmarks — Bookmark Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,7 +18,7 @@
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Bookmark Studio — на початок">
+      <a class="brand" href="#" aria-label="Bookmark Studio — home">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3.25L7 21V4.75Z" /></svg>
         </span>
@@ -26,19 +26,19 @@
       </a>
       <span class="privacy-pill">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10V7a4.5 4.5 0 0 1 9 0v3m-10 0h11a1 1 0 0 1 1 1v9h-13v-9a1 1 0 0 1 1-1Z" /></svg>
-        Приватна бібліотека
+        Private library
       </span>
     </header>
 
     <main>
       <section class="hero" aria-labelledby="page-title">
         <div>
-          <p class="eyebrow">Ваша колекція</p>
-          <h1 id="page-title">Мої закладки</h1>
-          <p class="hero-copy">Зберігайте важливе разом із контекстом, до якого захочеться повернутися.</p>
+          <p class="eyebrow">Your collection</p>
+          <h1 id="page-title">My Bookmarks</h1>
+          <p class="hero-copy">Save what matters with the context you will want when you return.</p>
         </div>
         <button class="primary-button hero-button" type="button" data-focus-form>
-          <span aria-hidden="true">＋</span> Додати посилання
+          <span aria-hidden="true">＋</span> Add a link
         </button>
       </section>
 
@@ -48,52 +48,52 @@
             <svg viewBox="0 0 24 24"><path d="m10.5 13.5 3-3m-5 6-1.25 1.25a3.18 3.18 0 0 1-4.5-4.5L6 10m9.5-2.5 1.25-1.25a3.18 3.18 0 1 1 4.5 4.5L18 14m-9-2 6 0" /></svg>
           </span>
           <div>
-            <h2 id="composer-title">Нове посилання</h2>
-            <p>Вставте URL і додайте власний контекст.</p>
+            <h2 id="composer-title">New link</h2>
+            <p>Paste a URL and add your own context.</p>
           </div>
         </div>
 
         <form id="bookmark-form">
           <div class="url-row">
-            <label class="sr-only" for="url">Адреса посилання</label>
+            <label class="sr-only" for="url">Link address</label>
             <div class="input-with-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.54 3.54 0 0 0-5-5l-1 1m2 3a3.5 3.5 0 0 0-5 0l-3 3a3.54 3.54 0 0 0 5 5l1-1" /></svg>
-              <input id="url" name="url" type="url" placeholder="https://example.com/цікава-стаття" required />
+              <input id="url" name="url" type="url" placeholder="https://example.com/interesting-article" required />
             </div>
-            <button class="secondary-button" type="button" id="preview-button">Створити перегляд</button>
+            <button class="secondary-button" type="button" id="preview-button">Create preview</button>
           </div>
 
           <div class="preview-panel is-hidden" id="preview-panel" aria-live="polite">
-            <div class="preview-cover" id="preview-cover"><span>Попередній перегляд</span></div>
+            <div class="preview-cover" id="preview-cover"><span>Link preview</span></div>
             <div>
-              <span class="preview-label">ПЕРЕГЛЯД ПОСИЛАННЯ</span>
+              <span class="preview-label">LINK PREVIEW</span>
               <strong id="preview-domain">example.com</strong>
-              <p id="preview-copy">Перевірте вигляд картки та відредагуйте деталі нижче.</p>
+              <p id="preview-copy">Review the card and edit its details below.</p>
             </div>
           </div>
 
           <div class="form-grid">
             <label>
-              <span>Назва <b>*</b></span>
-              <input id="title" name="title" type="text" placeholder="Про що це посилання?" required />
+              <span>Title <b>*</b></span>
+              <input id="title" name="title" type="text" placeholder="What is this link about?" required />
             </label>
             <label>
-              <span>Обкладинка <em>необов’язково</em></span>
+              <span>Cover image <em>optional</em></span>
               <input id="cover" name="cover" type="url" placeholder="https://…/image.jpg" />
             </label>
             <label class="full-width">
-              <span>Короткий опис</span>
-              <textarea id="description" name="description" rows="2" placeholder="Коротко опишіть матеріал"></textarea>
+              <span>Short description</span>
+              <textarea id="description" name="description" rows="2" placeholder="Briefly describe this content"></textarea>
             </label>
             <label class="full-width">
-              <span>Приватна нотатка</span>
-              <textarea id="note" name="note" rows="3" placeholder="Чому ви це зберігаєте? Що важливо запам’ятати?"></textarea>
-              <small>Цю нотатку бачите лише ви.</small>
+              <span>Private note</span>
+              <textarea id="note" name="note" rows="3" placeholder="Why are you saving this? What should you remember?"></textarea>
+              <small>Only you can see this note.</small>
             </label>
             <label class="full-width">
-              <span>Теги</span>
-              <input id="tags" name="tags" type="text" placeholder="подорожі, дизайн, натхнення" />
-              <small>Розділяйте теги комами.</small>
+              <span>Tags</span>
+              <input id="tags" name="tags" type="text" placeholder="travel, design, inspiration" />
+              <small>Separate tags with commas.</small>
             </label>
           </div>
 
@@ -101,7 +101,7 @@
             <p id="form-message" role="status"></p>
             <button class="primary-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75V21l-5-3.25L7 21V4.75Z" /></svg>
-              Зберегти закладку
+              Save bookmark
             </button>
           </div>
         </form>
@@ -110,10 +110,10 @@
       <section class="library" aria-labelledby="library-title">
         <div class="library-heading">
           <div>
-            <h2 id="library-title">Бібліотека</h2>
-            <p><span id="bookmark-count">0</span> <span id="bookmark-word">закладок</span> у вашій колекції</p>
+            <h2 id="library-title">Library</h2>
+            <p><span id="bookmark-count">0</span> <span id="bookmark-word">bookmarks</span> in your collection</p>
           </div>
-          <span class="sort-label">Спочатку найновіші</span>
+          <span class="sort-label">Newest first</span>
         </div>
         <div class="bookmark-grid" id="bookmark-list"></div>
       </section>
@@ -124,7 +124,7 @@
         <div class="card-cover">
           <img alt="" />
           <div class="cover-fallback"><span>BS</span></div>
-          <span class="example-badge">Приклад</span>
+          <span class="example-badge">Example</span>
         </div>
         <div class="card-body">
           <span class="card-domain"></span>
@@ -136,7 +136,7 @@
           </div>
           <div class="tag-list"></div>
           <a class="source-link" target="_blank" rel="noopener noreferrer">
-            Відкрити джерело
+            Open source
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5m0-5-9 9m7-2v6a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h6" /></svg>
           </a>
         </div>

@@ -1,38 +1,38 @@
 # Bookmark Studio
 
-Перший прототип приватної бібліотеки закладок. Це один адаптивний екран на чистих HTML, CSS і JavaScript без збірки та залежностей.
+The first prototype of a private bookmark library. It is a single responsive screen built with plain HTML, CSS and JavaScript, with no build step or dependencies.
 
-## Структура
+## Structure
 
 ```text
 bookmark-studio/
-├── frontend/   # поточний інтерфейс застосунку
-└── backend/    # місце для майбутніх API та бази даних
+├── frontend/   # current application interface
+└── backend/    # reserved for the future API and database
 ```
 
-## Що вже працює
+## What works
 
-- додавання URL із попереднім переглядом;
-- ручне редагування назви, опису й необов’язкової обкладинки;
-- приватна нотатка та теги;
-- збереження у `localStorage` браузера;
-- нова картка одразу з’являється вгорі бібліотеки;
-- адаптивний вигляд для мобільних екранів;
-- демонстраційна картка про Барселону, позначена як «Приклад».
+- add a URL with a link preview;
+- manually edit the title, description and optional cover image;
+- add a private note and tags;
+- save bookmarks in browser `localStorage`;
+- show each new card at the top of the library;
+- responsive layout for mobile screens;
+- a Barcelona demo card clearly marked as “Example”.
 
-## Локальний запуск
+## Run locally
 
-Найпростіше — перейти до папки фронтенду й запустити локальний сервер:
+Open the frontend directory and start a local server:
 
 ```powershell
 cd frontend
 python -m http.server 8080
 ```
 
-Після цього відкрийте [http://localhost:8080](http://localhost:8080). Сервер можна зупинити комбінацією `Ctrl+C`.
+Then open [http://localhost:8080](http://localhost:8080). Stop the server with `Ctrl+C`.
 
-Застосунок також можна переглянути, відкривши `frontend/index.html` напряму в браузері.
+You can also view the application by opening `frontend/index.html` directly in a browser.
 
-## Межі першого кроку
+## First-step scope
 
-Дані поки що зберігаються лише в поточному браузері. Бекенд, база даних, облікові записи, автоматичне отримання метаданих, пошук, фільтри, публічні сторінки та деплой не входять до цього прототипу.
+Data is currently stored only in the active browser. A backend, database, user accounts, automatic metadata, search, filters, public pages and deployment are outside this prototype’s scope.

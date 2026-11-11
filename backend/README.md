@@ -1,5 +1,5 @@
 # Backend
 
-Тут буде серверна частина Bookmark Studio: API, база даних, облікові записи та правила приватності.
+This directory will contain the Bookmark Studio server: its API, database, user accounts and privacy rules.
 
-У першому прототипі бекенд свідомо не реалізований. Дані тимчасово зберігаються в `localStorage` браузера у фронтенді.
+The backend is intentionally not implemented in the first prototype. The frontend temporarily stores data in browser `localStorage`.

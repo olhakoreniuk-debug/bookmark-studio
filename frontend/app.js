@@ -3,11 +3,11 @@ const STORAGE_KEY = "bookmark-studio:bookmarks";
 const exampleBookmark = {
   id: "example-barcelona",
   url: "https://www.barcelonaturisme.com/wv3/en/",
-  title: "Барселона поза листівками: архітектура, море й тихі площі",
-  description: "Практичний путівник містом: від модерністських кварталів до локальних ринків і прогулянок уздовж моря.",
+  title: "Barcelona beyond the postcards: architecture, sea and quiet squares",
+  description: "A practical city guide, from modernist neighbourhoods to local markets and walks along the sea.",
   cover: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=1200&q=80",
-  note: "Повернутися перед поїздкою: особливо до маршруту через Грасію та списку невеликих музеїв.",
-  tags: ["Барселона", "подорожі", "архітектура"],
+  note: "Revisit before the trip, especially the route through Gràcia and the list of smaller museums.",
+  tags: ["Barcelona", "travel", "architecture"],
   createdAt: 0,
   example: true,
 };
@@ -18,6 +18,17 @@ const template = document.querySelector("#bookmark-template");
 const previewButton = document.querySelector("#preview-button");
 const previewPanel = document.querySelector("#preview-panel");
 const formMessage = document.querySelector("#form-message");
+
+const validationMessages = {
+  url: "Enter a complete URL, including https://",
+  title: "Add a title for this bookmark.",
+};
+
+Object.entries(validationMessages).forEach(([fieldName, message]) => {
+  const field = form.elements[fieldName];
+  field.addEventListener("invalid", () => field.setCustomValidity(message));
+  field.addEventListener("input", () => field.setCustomValidity(""));
+});
 
 function readBookmarks() {
   try {
@@ -32,17 +43,12 @@ function domainFromUrl(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
-    return "посилання";
+    return "link";
   }
 }
 
 function wordForBookmarks(count) {
-  const lastTwo = count % 100;
-  const last = count % 10;
-  if (lastTwo >= 11 && lastTwo <= 14) return "закладок";
-  if (last === 1) return "закладка";
-  if (last >= 2 && last <= 4) return "закладки";
-  return "закладок";
+  return count === 1 ? "bookmark" : "bookmarks";
 }
 
 function createCard(bookmark) {
@@ -53,7 +59,7 @@ function createCard(bookmark) {
 
   if (bookmark.cover) {
     image.src = bookmark.cover;
-    image.alt = `Обкладинка: ${bookmark.title}`;
+    image.alt = `Cover image: ${bookmark.title}`;
     image.addEventListener("error", () => {
       image.hidden = true;
       fallback.hidden = false;
@@ -66,7 +72,7 @@ function createCard(bookmark) {
   badge.hidden = !bookmark.example;
   card.querySelector(".card-domain").textContent = domainFromUrl(bookmark.url);
   card.querySelector("h3").textContent = bookmark.title;
-  card.querySelector(".card-description").textContent = bookmark.description || "Збережене посилання без опису.";
+  card.querySelector(".card-description").textContent = bookmark.description || "Saved link without a description.";
   card.querySelector(".card-note p").textContent = bookmark.note || "";
 
   const tags = card.querySelector(".tag-list");
@@ -79,7 +85,7 @@ function createCard(bookmark) {
 
   const link = card.querySelector(".source-link");
   link.href = bookmark.url;
-  link.setAttribute("aria-label", `Відкрити джерело: ${bookmark.title}`);
+  link.setAttribute("aria-label", `Open source: ${bookmark.title}`);
   return card;
 }
 
@@ -97,7 +103,7 @@ function showPreview() {
 
   const domain = domainFromUrl(url);
   document.querySelector("#preview-domain").textContent = domain;
-  document.querySelector("#preview-copy").textContent = form.title.value.trim() || "Додайте назву, опис і власну нотатку нижче.";
+  document.querySelector("#preview-copy").textContent = form.title.value.trim() || "Add a title, description and your own note below.";
   const cover = form.cover.value.trim();
   const previewCover = document.querySelector("#preview-cover");
   previewCover.style.backgroundImage = cover ? `linear-gradient(#17332733, #17332766), url("${cover.replaceAll('"', "%22")}")` : "";
@@ -133,7 +139,7 @@ form.addEventListener("submit", (event) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
   form.reset();
   previewPanel.classList.add("is-hidden");
-  formMessage.textContent = "Закладку збережено — вона вже вгорі бібліотеки.";
+  formMessage.textContent = "Bookmark saved — it is now at the top of your library.";
   render();
   document.querySelector("#library-title").scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => { formMessage.textContent = ""; }, 5000);
