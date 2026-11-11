@@ -1,4 +1,5 @@
 const STORAGE_KEY = "bookmark-studio:bookmarks";
+const API_URL = "http://localhost:8000/api/bookmarks";
 
 const exampleBookmark = {
   id: "example-barcelona",
@@ -36,6 +37,42 @@ function readBookmarks() {
     return Array.isArray(saved) ? saved : [];
   } catch {
     return [];
+  }
+}
+
+function saveLocalBookmarks(bookmarks) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+}
+
+async function requestApi(path = "", options = {}) {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...options.headers },
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "The bookmark API returned an error.");
+  return payload;
+}
+
+async function syncWithBackend() {
+  try {
+    const localBookmarks = readBookmarks();
+    const remoteBookmarks = await requestApi();
+    const remoteIds = new Set(remoteBookmarks.map((bookmark) => bookmark.id));
+
+    for (const bookmark of localBookmarks) {
+      if (!remoteIds.has(bookmark.id)) {
+        await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
+      }
+    }
+
+    const syncedBookmarks = localBookmarks.some((bookmark) => !remoteIds.has(bookmark.id))
+      ? await requestApi()
+      : remoteBookmarks;
+    saveLocalBookmarks(syncedBookmarks);
+    render();
+  } catch {
+    render();
   }
 }
 
@@ -118,7 +155,7 @@ function showPreview() {
 
 previewButton.addEventListener("click", showPreview);
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!form.reportValidity()) return;
 
@@ -136,10 +173,20 @@ form.addEventListener("submit", (event) => {
 
   const bookmarks = readBookmarks();
   bookmarks.push(bookmark);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+  saveLocalBookmarks(bookmarks);
+
+  let savedToBackend = false;
+  try {
+    await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
+    savedToBackend = true;
+  } catch {
+    // The local copy remains available and will sync when the API is running again.
+  }
   form.reset();
   previewPanel.classList.add("is-hidden");
-  formMessage.textContent = "Bookmark saved — it is now at the top of your library.";
+  formMessage.textContent = savedToBackend
+    ? "Bookmark saved to your library."
+    : "Bookmark saved in this browser. Start the API to sync it.";
   render();
   document.querySelector("#library-title").scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => { formMessage.textContent = ""; }, 5000);
@@ -152,4 +199,4 @@ document.querySelectorAll("[data-focus-form]").forEach((button) => {
   });
 });
 
-render();
+syncWithBackend();

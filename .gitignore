@@ -1,0 +1,5 @@
+backend/bookmarks.db
+backend/bookmarks.db-shm
+backend/bookmarks.db-wal
+backend/test-bookmarks.db
+backend/__pycache__/

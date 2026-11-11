@@ -1,13 +1,13 @@
 # Bookmark Studio
 
-The first prototype of a private bookmark library. It is a single responsive screen built with plain HTML, CSS and JavaScript, with no build step or dependencies.
+Bookmark Studio is a private bookmark library with a plain HTML/CSS/JavaScript frontend and a local Python/SQLite backend.
 
 ## Structure
 
 ```text
 bookmark-studio/
 ├── frontend/   # current application interface
-└── backend/    # reserved for the future API and database
+└── backend/    # Python JSON API and SQLite database
 ```
 
 ## What works
@@ -15,14 +15,24 @@ bookmark-studio/
 - add a URL with a link preview;
 - manually edit the title, description and optional cover image;
 - add a private note and tags;
-- save bookmarks in browser `localStorage`;
+- save bookmarks through a local API in SQLite;
+- keep `localStorage` as an offline fallback and synchronize it with the API;
 - show each new card at the top of the library;
 - responsive layout for mobile screens;
 - a Barcelona demo card clearly marked as “Example”.
 
 ## Run locally
 
-Open the frontend directory and start a local server:
+Open two PowerShell terminals in the repository.
+
+Terminal 1 — backend and database:
+
+```powershell
+cd backend
+python server.py
+```
+
+Terminal 2 — frontend:
 
 ```powershell
 cd frontend
@@ -35,4 +45,4 @@ You can also view the application by opening `frontend/index.html` directly in a
 
 ## First-step scope
 
-Data is currently stored only in the active browser. A backend, database, user accounts, automatic metadata, search, filters, public pages and deployment are outside this prototype’s scope.
+The backend currently runs locally without user accounts. Authentication, automatic metadata, search, filters, public pages and deployment remain outside this prototype’s scope.
