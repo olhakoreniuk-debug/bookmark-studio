@@ -1,5 +1,5 @@
 const STORAGE_KEY = "bookmark-studio:bookmarks";
-const API_URL = "http://localhost:8000/api/bookmarks";
+const API_URL = window.BOOKMARK_API_URL || "http://localhost:8000/api/bookmarks";
 
 const exampleBookmark = {
   id: "example-barcelona",

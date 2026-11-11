@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Bookmark Studio local API using only the Python standard library."""
+"""Bookmark Studio API with PostgreSQL and a local SQLite fallback."""
 
 import json
+import os
 import sqlite3
 import time
 import uuid
@@ -11,15 +12,31 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-HOST = "127.0.0.1"
-PORT = 8000
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = int(os.environ.get("PORT", "8000"))
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "http://localhost:8080")
 DATABASE_PATH = Path(__file__).with_name("bookmarks.db")
 
 
 def connect_database():
+    if DATABASE_URL:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as error:
+            raise RuntimeError(
+                "PostgreSQL support requires: pip install -r requirements.txt"
+            ) from error
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def parameter_marker():
+    return "%s" if DATABASE_URL else "?"
 
 
 def initialize_database():
@@ -34,7 +51,7 @@ def initialize_database():
                 cover TEXT NOT NULL DEFAULT '',
                 note TEXT NOT NULL DEFAULT '',
                 tags TEXT NOT NULL DEFAULT '[]',
-                created_at INTEGER NOT NULL
+                created_at BIGINT NOT NULL
             )
             """
         )
@@ -63,12 +80,13 @@ def list_bookmarks():
 
 
 def upsert_bookmark(bookmark):
+    markers = ", ".join([parameter_marker()] * 8)
     with closing(connect_database()) as connection, connection:
         connection.execute(
-            """
+            f"""
             INSERT INTO bookmarks
                 (id, url, title, description, cover, note, tags, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ({markers})
             ON CONFLICT(id) DO UPDATE SET
                 url = excluded.url,
                 title = excluded.title,
@@ -113,7 +131,7 @@ def validate_bookmark(payload):
 
 class BookmarkHandler(BaseHTTPRequestHandler):
     def end_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "http://localhost:8080")
+        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         super().end_headers()
@@ -132,7 +150,12 @@ class BookmarkHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/health":
-            self.send_json(200, {"status": "ok"})
+            with closing(connect_database()) as connection:
+                connection.execute("SELECT 1").fetchone()
+            self.send_json(200, {
+                "status": "ok",
+                "database": "postgresql" if DATABASE_URL else "sqlite",
+            })
             return
         if self.path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
@@ -166,6 +189,7 @@ if __name__ == "__main__":
     initialize_database()
     server = ThreadingHTTPServer((HOST, PORT), BookmarkHandler)
     print(f"Bookmark Studio API running at http://{HOST}:{PORT}")
+    print(f"Database: {'PostgreSQL' if DATABASE_URL else 'SQLite (local fallback)'}")
     print("Press Ctrl+C to stop.")
     try:
         server.serve_forever()

@@ -1,6 +1,6 @@
 # Backend
 
-The second prototype includes a small local JSON API backed by SQLite. It uses only Python’s standard library, so there are no packages to install.
+The API uses PostgreSQL in production and keeps SQLite as a zero-configuration local fallback.
 
 ## Run
 
@@ -9,7 +9,25 @@ cd backend
 python server.py
 ```
 
-The API runs at `http://localhost:8000` and creates `bookmarks.db` automatically. The database file is private local data and is ignored by Git.
+Without `DATABASE_URL`, the API runs at `http://localhost:8000` and creates a local `bookmarks.db` automatically. The database file is private local data and is ignored by Git.
+
+## PostgreSQL
+
+Install the PostgreSQL driver and provide a connection URL:
+
+```powershell
+pip install -r requirements.txt
+$env:DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE"
+python server.py
+```
+
+On Coolify, set these environment variables instead of writing secrets in the repository:
+
+- `DATABASE_URL` — the PostgreSQL Internal URL from Coolify;
+- `ALLOWED_ORIGIN` — the final Netlify frontend origin, such as `https://bookmark-studio.netlify.app`;
+- `PORT` — optional; defaults to `8000`.
+
+The included `Dockerfile` is the recommended Coolify deployment method.
 
 ## Endpoints
 
@@ -17,4 +35,4 @@ The API runs at `http://localhost:8000` and creates `bookmarks.db` automatically
 - `GET /api/bookmarks` — list bookmarks, newest first;
 - `POST /api/bookmarks` — create or synchronize a bookmark.
 
-User accounts and remote deployment are intentionally reserved for a later stage.
+User accounts remain intentionally reserved for a later stage.

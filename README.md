@@ -1,13 +1,13 @@
 # Bookmark Studio
 
-Bookmark Studio is a private bookmark library with a plain HTML/CSS/JavaScript frontend and a local Python/SQLite backend.
+Bookmark Studio is a private bookmark library with a plain HTML/CSS/JavaScript frontend and a Python backend. Production uses PostgreSQL; local development can fall back to SQLite.
 
 ## Structure
 
 ```text
 bookmark-studio/
 ├── frontend/   # current application interface
-└── backend/    # Python JSON API and SQLite database
+└── backend/    # Python JSON API, PostgreSQL config and Dockerfile
 ```
 
 ## What works
@@ -15,7 +15,7 @@ bookmark-studio/
 - add a URL with a link preview;
 - manually edit the title, description and optional cover image;
 - add a private note and tags;
-- save bookmarks through a local API in SQLite;
+- save bookmarks through an API in PostgreSQL (or local SQLite during development);
 - keep `localStorage` as an offline fallback and synchronize it with the API;
 - show each new card at the top of the library;
 - responsive layout for mobile screens;
@@ -45,4 +45,4 @@ You can also view the application by opening `frontend/index.html` directly in a
 
 ## First-step scope
 
-The backend currently runs locally without user accounts. Authentication, automatic metadata, search, filters, public pages and deployment remain outside this prototype’s scope.
+The backend currently runs without user accounts. Authentication, automatic metadata, search, filters and public pages remain outside this prototype’s scope.
