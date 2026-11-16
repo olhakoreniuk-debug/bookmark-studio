@@ -14,6 +14,22 @@ const exampleBookmark = {
 };
 
 const form = document.querySelector("#bookmark-form");
+
+// The Chrome bookmarklet opens this page with ?url=...&title=...
+const incoming = new URLSearchParams(window.location.search);
+const incomingUrl = incoming.get("url");
+if (incomingUrl) {
+  try {
+    const parsed = new URL(incomingUrl);
+    if (["https:", "http:"].includes(parsed.protocol)) {
+      form.elements.url.value = parsed.href;
+      form.elements.title.value = (incoming.get("title") || "").slice(0, 300);
+      window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+      window.addEventListener("load", () => document.querySelector("#composer-title").scrollIntoView({block:"start"}));
+    }
+  } catch { /* Ignore invalid incoming URLs. */ }
+}
+
 const list = document.querySelector("#bookmark-list");
 const template = document.querySelector("#bookmark-template");
 const previewButton = document.querySelector("#preview-button");
