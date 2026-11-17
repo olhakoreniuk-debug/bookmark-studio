@@ -1,5 +1,6 @@
 const STORAGE_KEY = "bookmark-studio:bookmarks";
 
+const DELETED_KEY = "bookmark-studio:deleted-ids";
 const CATEGORIES_KEY = "bookmark-studio:categories";
 
 const DEFAULT_CATEGORIES = [
@@ -127,6 +128,15 @@ function readBookmarks() {
   }
 }
 
+function deletedIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(DELETED_KEY)) || []); }
+  catch { return new Set(); }
+}
+function saveDeletedId(id) {
+  const ids = deletedIds();
+  ids.add(id);
+  localStorage.setItem(DELETED_KEY, JSON.stringify([...ids]));
+}
 function saveLocalBookmarks(bookmarks) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
 }
@@ -143,7 +153,8 @@ async function requestApi(path = "", options = {}) {
 
 async function syncWithBackend() {
   try {
-    const localBookmarks = readBookmarks();
+    const removed = deletedIds();
+    const localBookmarks = readBookmarks().filter((bookmark) => !removed.has(bookmark.id));
     const remoteBookmarks = await requestApi();
     const remoteIds = new Set(remoteBookmarks.map((bookmark) => bookmark.id));
 
@@ -156,10 +167,24 @@ async function syncWithBackend() {
     const syncedBookmarks = localBookmarks.some((bookmark) => !remoteIds.has(bookmark.id))
       ? await requestApi()
       : remoteBookmarks;
-    saveLocalBookmarks(syncedBookmarks);
+    saveLocalBookmarks(syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id)));
     render();
   } catch {
     render();
+  }
+}
+
+async function deleteBookmark(bookmark, button) {
+  if (!window.confirm(`Delete "${bookmark.title}" permanently?`)) return;
+  button.disabled = true;
+  try {
+    await requestApi("/" + encodeURIComponent(bookmark.id), { method: "DELETE" });
+    saveDeletedId(bookmark.id);
+    saveLocalBookmarks(readBookmarks().filter((item) => item.id !== bookmark.id));
+    render();
+  } catch (error) {
+    button.disabled = false;
+    window.alert("Could not delete bookmark: " + error.message);
   }
 }
 
@@ -207,6 +232,11 @@ function createCard(bookmark) {
     tags.append(element);
   });
 
+  const deleteButton = card.querySelector(".delete-bookmark");
+  deleteButton.hidden = Boolean(bookmark.example);
+  if (!bookmark.example) {
+    deleteButton.addEventListener("click", () => deleteBookmark(bookmark, deleteButton));
+  }
   const link = card.querySelector(".source-link");
   link.href = bookmark.url;
   link.setAttribute("aria-label", `Open source: ${bookmark.title}`);
