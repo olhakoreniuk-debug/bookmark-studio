@@ -216,7 +216,7 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == "/api/health":
+        if urlparse(self.path).path == "/api/health":
             with closing(connect_database()) as connection:
                 connection.execute("SELECT 1").fetchone()
 
@@ -228,14 +228,14 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             })
             return
 
-        if self.path != "/api/bookmarks":
+        if urlparse(self.path).path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
             return
 
         self.send_json(200, list_bookmarks())
 
     def do_POST(self):
-        if self.path != "/api/bookmarks":
+        if urlparse(self.path).path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
             return
 
