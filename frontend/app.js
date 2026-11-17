@@ -160,28 +160,17 @@ async function requestApi(path = "", options = {}) {
 async function syncWithBackend() {
   if (!googleToken) return;
   try {
-    const removed = deletedIds();
-    const localBookmarks = readBookmarks().filter((bookmark) => !removed.has(bookmark.id));
+    // Authenticate with the server before revealing any private data.
     const remoteBookmarks = await requestApi();
-    const remoteIds = new Set(remoteBookmarks.map((bookmark) => bookmark.id));
-
-    for (const bookmark of localBookmarks) {
-      if (!remoteIds.has(bookmark.id)) {
-        await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
-      }
-    }
-
-    const syncedBookmarks = localBookmarks.some((bookmark) => !remoteIds.has(bookmark.id))
-      ? await requestApi()
-      : remoteBookmarks;
-    privateBookmarks = syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id));
-    saveLocalBookmarks(privateBookmarks);
+    privateBookmarks = remoteBookmarks;
+    saveLocalBookmarks(remoteBookmarks);
     render();
+    document.querySelector("#auth-status").textContent = "Signed in with Google.";
   } catch (error) {
-    if (String(error.message).includes("Invalid or expired")) signOut();
-    console.error("Could not load bookmarks from the server:", error);
-    formMessage.textContent = "Could not load saved bookmarks from the server. Please refresh the page.";
+    privateBookmarks = [];
     render();
+    document.querySelector("#auth-status").textContent =
+      "Unable to open your library: " + error.message;
   }
 }
 
@@ -191,7 +180,8 @@ async function deleteBookmark(bookmark, button) {
   try {
     await requestApi("/" + encodeURIComponent(bookmark.id), { method: "DELETE" });
     saveDeletedId(bookmark.id);
-    saveLocalBookmarks(readBookmarks().filter((item) => item.id !== bookmark.id));
+    privateBookmarks = privateBookmarks.filter((item) => item.id !== bookmark.id);
+    saveLocalBookmarks(privateBookmarks);
     render();
   } catch (error) {
     button.disabled = false;
@@ -355,7 +345,7 @@ form.addEventListener("submit", async (event) => {
     saveButton.disabled = false;
   }
 
-  const bookmarks = readBookmarks();
+  const bookmarks = [...privateBookmarks];
   const index = bookmarks.findIndex((item) => item.id === bookmark.id);
   if (index >= 0) bookmarks[index] = bookmark;
   else bookmarks.push(bookmark);
@@ -381,6 +371,7 @@ function signOut() {
   privateBookmarks = [];
   editingBookmark = null;
   document.querySelector("#private-workspace").hidden = true;
+  document.querySelectorAll("[data-focus-form]").forEach((button) => { button.hidden = true; });
   document.querySelector("#sign-out").hidden = true;
   document.querySelector("#auth-status").textContent = "Sign in to access your private bookmarks.";
   document.querySelector("#bookmark-list").replaceChildren();
@@ -389,14 +380,13 @@ function signOut() {
 }
 function handleGoogleCredential(response) {
   googleToken = response.credential;
-  privateBookmarks = readBookmarks();
+  privateBookmarks = [];
   document.querySelector("#private-workspace").hidden = false;
+  document.querySelectorAll("[data-focus-form]").forEach((button) => { button.hidden = false; });
   document.querySelector("#sign-out").hidden = false;
   document.querySelector("#auth-status").textContent = "Signed in. Loading your bookmarks…";
   render();
-  syncWithBackend().then(() => {
-    if (googleToken) document.querySelector("#auth-status").textContent = "Signed in with Google.";
-  });
+  syncWithBackend();
 }
 window.handleGoogleCredential = handleGoogleCredential;
 window.initializeGoogleSignIn = function () {
