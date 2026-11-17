@@ -170,7 +170,9 @@ async function syncWithBackend() {
       : remoteBookmarks;
     saveLocalBookmarks(syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id)));
     render();
-  } catch {
+  } catch (error) {
+    console.error("Could not load bookmarks from the server:", error);
+    formMessage.textContent = "Could not load saved bookmarks from the server. Please refresh the page.";
     render();
   }
 }
@@ -367,4 +369,5 @@ document.querySelectorAll("[data-focus-form]").forEach((button) => {
 });
 populateCategorySelect();
 renderCategoryFilters();
+render(); // Show the example and cached bookmarks immediately, even while the API wakes up.
 syncWithBackend();
