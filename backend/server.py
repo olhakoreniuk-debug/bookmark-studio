@@ -189,7 +189,7 @@ class BookmarkHandler(BaseHTTPRequestHandler):
 
         self.send_header(
             "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS"
+            "GET, POST, DELETE, OPTIONS"
         )
         self.send_header(
             "Access-Control-Allow-Headers",
@@ -261,6 +261,27 @@ class BookmarkHandler(BaseHTTPRequestHandler):
 
         upsert_bookmark(bookmark)
         self.send_json(201, {**bookmark, "example": False})
+
+    def do_DELETE(self):
+        path = urlparse(self.path).path
+        prefix = "/api/bookmarks/"
+        bookmark_id = path[len(prefix):] if path.startswith(prefix) else ""
+        if not bookmark_id or "/" in bookmark_id:
+            self.send_json(404, {"error": "Not found"})
+            return
+
+        with closing(connect_database()) as connection, connection:
+            cursor = connection.execute(
+                f"DELETE FROM bookmarks WHERE id = {parameter_marker()}",
+                (bookmark_id,),
+            )
+            deleted = cursor.rowcount
+
+        if not deleted:
+            self.send_json(404, {"error": "Bookmark not found"})
+            return
+
+        self.send_json(200, {"deleted": True, "id": bookmark_id})
 
     def log_message(self, message, *args):
         print(
