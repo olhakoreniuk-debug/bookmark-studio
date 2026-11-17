@@ -163,3 +163,6 @@ input::placeholder, textarea::placeholder { color: #9ba39c; }
 .edit-bookmark { padding: 9px 12px; border: 1px solid #b7d5c2; border-radius: 8px; background: var(--green-soft); color: var(--green); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .edit-bookmark:hover { background: #dceae1; }
 .edit-bookmark[hidden], #cancel-edit[hidden] { display: none; }
+
+/* Keep private controls hidden until Google authentication succeeds. */
+[hidden] { display: none !important; }
