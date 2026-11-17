@@ -42,6 +42,13 @@
         </button>
       </section>
 
+      <section class="composer" aria-label="Google sign-in">
+        <h2>Private library access</h2>
+        <p id="auth-status" role="status">Sign in to access your private bookmarks.</p>
+        <div id="google-signin"></div>
+        <button type="button" id="sign-out" class="secondary-button" hidden>Sign out</button>
+      </section>
+      <div id="private-workspace" hidden>
       <section class="composer" aria-labelledby="chrome-title">
         <div class="composer-heading"><div>
           <h2 id="chrome-title">Save from Chrome</h2>
@@ -123,6 +130,7 @@
         </form>
       </section>
 
+      </div>
       <section class="library" aria-labelledby="library-title">
         <div class="library-heading">
           <div>
@@ -169,8 +177,9 @@
       </article>
     </template>
 
-    <script src="config.js?v=20261117-2"></script>
-    <script src="app.js?v=20261117-2"></script>
+    <script src="config.js?v=google-auth-1"></script>
+    <script src="app.js?v=google-auth-1"></script>
     <script src="bookmarklet.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer onload="initializeGoogleSignIn()"></script>
   </body>
 </html>
