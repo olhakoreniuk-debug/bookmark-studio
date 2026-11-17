@@ -24,6 +24,7 @@ const exampleBookmark = {
   example: true,
 };
 let activeCategory = "All";
+let editingBookmark = null;
 const form = document.querySelector("#bookmark-form");
 
 // The Chrome bookmarklet opens this page with ?url=...&title=...
@@ -188,6 +189,38 @@ async function deleteBookmark(bookmark, button) {
   }
 }
 
+function resetEditMode() {
+  editingBookmark = null;
+  document.querySelector("#composer-title").textContent = "New link";
+  document.querySelector("#save-bookmark-button").lastChild.textContent = " Save bookmark";
+  document.querySelector("#cancel-edit").hidden = true;
+  form.reset();
+  previewPanel.classList.add("is-hidden");
+}
+
+function startEditing(bookmark) {
+  editingBookmark = bookmark;
+  form.elements.url.value = bookmark.url;
+  form.elements.title.value = bookmark.title;
+  form.elements.description.value = bookmark.description || "";
+  form.elements.cover.value = bookmark.cover || "";
+  form.elements.note.value = bookmark.note || "";
+  form.elements.tags.value = (bookmark.tags || []).join(", ");
+  form.elements.category.value = bookmark.category || "";
+  document.querySelector("#composer-title").textContent = "Edit bookmark";
+  document.querySelector("#save-bookmark-button").lastChild.textContent = " Save changes";
+  document.querySelector("#cancel-edit").hidden = false;
+  previewPanel.classList.add("is-hidden");
+  formMessage.textContent = "";
+  document.querySelector("#composer-title").scrollIntoView({ behavior: "smooth", block: "start" });
+  form.elements.title.focus({ preventScroll: true });
+}
+
+document.querySelector("#cancel-edit").addEventListener("click", () => {
+  resetEditMode();
+  formMessage.textContent = "";
+});
+
 function domainFromUrl(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -232,6 +265,11 @@ function createCard(bookmark) {
     tags.append(element);
   });
 
+  const editButton = card.querySelector(".edit-bookmark");
+  editButton.hidden = Boolean(bookmark.example);
+  if (!bookmark.example) {
+    editButton.addEventListener("click", () => startEditing(bookmark));
+  }
   const deleteButton = card.querySelector(".delete-bookmark");
   deleteButton.hidden = Boolean(bookmark.example);
   if (!bookmark.example) {
@@ -277,8 +315,9 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!form.reportValidity()) return;
 
+  const isEditing = Boolean(editingBookmark);
   const bookmark = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    id: isEditing ? editingBookmark.id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
     url: form.url.value.trim(),
     title: form.title.value.trim(),
     description: form.description.value.trim(),
@@ -286,25 +325,34 @@ form.addEventListener("submit", async (event) => {
     note: form.note.value.trim(),
     tags: form.tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
     category: form.elements.category.value,
-    createdAt: Date.now(),
+    createdAt: isEditing ? editingBookmark.createdAt : Date.now(),
     example: false,
   };
 
-  const bookmarks = readBookmarks();
-  bookmarks.push(bookmark);
-  saveLocalBookmarks(bookmarks);
-
+  const saveButton = document.querySelector("#save-bookmark-button");
+  saveButton.disabled = true;
   let savedToBackend = false;
   try {
     await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
     savedToBackend = true;
-  } catch {
-    // The local copy remains available and will sync when the API is running again.
+  } catch (error) {
+    if (isEditing) {
+      formMessage.textContent = "Could not save changes: " + error.message;
+      saveButton.disabled = false;
+      return;
+    }
+  } finally {
+    saveButton.disabled = false;
   }
-  form.reset();
-  previewPanel.classList.add("is-hidden");
+
+  const bookmarks = readBookmarks();
+  const index = bookmarks.findIndex((item) => item.id === bookmark.id);
+  if (index >= 0) bookmarks[index] = bookmark;
+  else bookmarks.push(bookmark);
+  saveLocalBookmarks(bookmarks);
+  resetEditMode();
   formMessage.textContent = savedToBackend
-    ? "Bookmark saved to your library."
+    ? (isEditing ? "Bookmark updated successfully." : "Bookmark saved to your library.")
     : "Bookmark saved in this browser. Start the API to sync it.";
   render();
   document.querySelector("#library-title").scrollIntoView({ behavior: "smooth", block: "start" });
