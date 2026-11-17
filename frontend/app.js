@@ -25,6 +25,9 @@ const exampleBookmark = {
 };
 let activeCategory = "All";
 let editingBookmark = null;
+let googleToken = null;
+let privateBookmarks = [];
+const GOOGLE_CLIENT_ID = window.BOOKMARK_GOOGLE_CLIENT_ID || "";
 const form = document.querySelector("#bookmark-form");
 
 // The Chrome bookmarklet opens this page with ?url=...&title=...
@@ -121,6 +124,7 @@ render();
   });
 }
 function readBookmarks() {
+  if (!googleToken) return [];
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     return Array.isArray(saved) ? saved : [];
@@ -143,9 +147,10 @@ function saveLocalBookmarks(bookmarks) {
 }
 
 async function requestApi(path = "", options = {}) {
+  if (!googleToken) throw new Error("Sign in with Google first.");
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${googleToken}`, ...options.headers },
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "The bookmark API returned an error.");
@@ -153,6 +158,7 @@ async function requestApi(path = "", options = {}) {
 }
 
 async function syncWithBackend() {
+  if (!googleToken) return;
   try {
     const removed = deletedIds();
     const localBookmarks = readBookmarks().filter((bookmark) => !removed.has(bookmark.id));
@@ -168,9 +174,11 @@ async function syncWithBackend() {
     const syncedBookmarks = localBookmarks.some((bookmark) => !remoteIds.has(bookmark.id))
       ? await requestApi()
       : remoteBookmarks;
-    saveLocalBookmarks(syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id)));
+    privateBookmarks = syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id));
+    saveLocalBookmarks(privateBookmarks);
     render();
   } catch (error) {
+    if (String(error.message).includes("Invalid or expired")) signOut();
     console.error("Could not load bookmarks from the server:", error);
     formMessage.textContent = "Could not load saved bookmarks from the server. Please refresh the page.";
     render();
@@ -284,7 +292,7 @@ function createCard(bookmark) {
 }
 
 function render() {
-  const bookmarks = readBookmarks().sort((a, b) => b.createdAt - a.createdAt);
+  const bookmarks = (googleToken ? privateBookmarks : []).sort((a, b) => b.createdAt - a.createdAt);
   const allBookmarks = [...bookmarks, exampleBookmark];
   const visibleBookmarks = activeCategory === "All" ? allBookmarks : allBookmarks.filter((bookmark) => bookmark.category === activeCategory);
   list.replaceChildren(...visibleBookmarks.map(createCard));
@@ -351,6 +359,7 @@ form.addEventListener("submit", async (event) => {
   const index = bookmarks.findIndex((item) => item.id === bookmark.id);
   if (index >= 0) bookmarks[index] = bookmark;
   else bookmarks.push(bookmark);
+  privateBookmarks = bookmarks;
   saveLocalBookmarks(bookmarks);
   resetEditMode();
   formMessage.textContent = savedToBackend
@@ -367,7 +376,38 @@ document.querySelectorAll("[data-focus-form]").forEach((button) => {
     window.setTimeout(() => form.url.focus(), 400);
   });
 });
+function signOut() {
+  googleToken = null;
+  privateBookmarks = [];
+  editingBookmark = null;
+  document.querySelector("#private-workspace").hidden = true;
+  document.querySelector("#sign-out").hidden = true;
+  document.querySelector("#auth-status").textContent = "Sign in to access your private bookmarks.";
+  document.querySelector("#bookmark-list").replaceChildren();
+  render();
+  if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect();
+}
+function handleGoogleCredential(response) {
+  googleToken = response.credential;
+  privateBookmarks = readBookmarks();
+  document.querySelector("#private-workspace").hidden = false;
+  document.querySelector("#sign-out").hidden = false;
+  document.querySelector("#auth-status").textContent = "Signed in. Loading your bookmarks…";
+  render();
+  syncWithBackend().then(() => {
+    if (googleToken) document.querySelector("#auth-status").textContent = "Signed in with Google.";
+  });
+}
+window.handleGoogleCredential = handleGoogleCredential;
+window.initializeGoogleSignIn = function () {
+  if (!GOOGLE_CLIENT_ID) {
+    document.querySelector("#auth-status").textContent = "Google sign-in is awaiting configuration.";
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false });
+  google.accounts.id.renderButton(document.querySelector("#google-signin"), { theme: "outline", size: "large" });
+};
+document.querySelector("#sign-out").addEventListener("click", signOut);
 populateCategorySelect();
 renderCategoryFilters();
-render(); // Show the example and cached bookmarks immediately, even while the API wakes up.
-syncWithBackend();
+signOut();
