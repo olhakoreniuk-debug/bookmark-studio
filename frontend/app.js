@@ -97,7 +97,7 @@ function renderCategoryFilters() {
 
   container.replaceChildren();
 
-  const categories = ["All", ...readCategories()];
+  const categories = googleToken ? ["All", ...readCategories()] : ["All"];
 
   categories.forEach((category) => {
     const button = document.createElement("button");
@@ -375,6 +375,7 @@ function signOut() {
   document.querySelector("#sign-out").hidden = true;
   document.querySelector("#auth-status").textContent = "Sign in to access your private bookmarks.";
   document.querySelector("#bookmark-list").replaceChildren();
+  renderCategoryFilters();
   render();
   if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect();
 }
@@ -385,6 +386,7 @@ function handleGoogleCredential(response) {
   document.querySelectorAll("[data-focus-form]").forEach((button) => { button.hidden = false; });
   document.querySelector("#sign-out").hidden = false;
   document.querySelector("#auth-status").textContent = "Signed in. Loading your bookmarks…";
+  renderCategoryFilters();
   render();
   syncWithBackend();
 }
