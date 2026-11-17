@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """Bookmark Studio API with PostgreSQL and a local SQLite fallback."""
 
@@ -15,7 +16,14 @@ from urllib.parse import urlparse
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
-ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "http://localhost:8080")
+ALLOWED_ORIGINS = {
+    origin.strip()
+    for origin in os.environ.get(
+        "ALLOWED_ORIGIN",
+        "http://localhost:8080,http://127.0.0.1:5500,http://localhost:5500"
+    ).split(",")
+    if origin.strip()
+}
 DATABASE_PATH = Path(__file__).with_name("bookmarks.db")
 
 
@@ -51,10 +59,29 @@ def initialize_database():
                 cover TEXT NOT NULL DEFAULT '',
                 note TEXT NOT NULL DEFAULT '',
                 tags TEXT NOT NULL DEFAULT '[]',
-                created_at BIGINT NOT NULL
+                created_at BIGINT NOT NULL,
+                category TEXT NOT NULL DEFAULT ''
             )
             """
         )
+
+        if DATABASE_URL:
+            connection.execute(
+                "ALTER TABLE bookmarks "
+                "ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''"
+            )
+        else:
+            columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(bookmarks)"
+                )
+            }
+            if "category" not in columns:
+                connection.execute(
+                    "ALTER TABLE bookmarks "
+                    "ADD COLUMN category TEXT NOT NULL DEFAULT ''"
+                )
 
 
 def row_to_bookmark(row):
@@ -67,6 +94,7 @@ def row_to_bookmark(row):
         "note": row["note"],
         "tags": json.loads(row["tags"]),
         "createdAt": row["created_at"],
+        "category": row["category"],
         "example": False,
     }
 
@@ -80,12 +108,14 @@ def list_bookmarks():
 
 
 def upsert_bookmark(bookmark):
-    markers = ", ".join([parameter_marker()] * 8)
+    markers = ", ".join([parameter_marker()] * 9)
+
     with closing(connect_database()) as connection, connection:
         connection.execute(
             f"""
             INSERT INTO bookmarks
-                (id, url, title, description, cover, note, tags, created_at)
+                (id, url, title, description, cover, note,
+                 tags, created_at, category)
             VALUES ({markers})
             ON CONFLICT(id) DO UPDATE SET
                 url = excluded.url,
@@ -94,12 +124,19 @@ def upsert_bookmark(bookmark):
                 cover = excluded.cover,
                 note = excluded.note,
                 tags = excluded.tags,
-                created_at = excluded.created_at
+                created_at = excluded.created_at,
+                category = excluded.category
             """,
             (
-                bookmark["id"], bookmark["url"], bookmark["title"],
-                bookmark["description"], bookmark["cover"], bookmark["note"],
-                json.dumps(bookmark["tags"], ensure_ascii=False), bookmark["createdAt"],
+                bookmark["id"],
+                bookmark["url"],
+                bookmark["title"],
+                bookmark["description"],
+                bookmark["cover"],
+                bookmark["note"],
+                json.dumps(bookmark["tags"], ensure_ascii=False),
+                bookmark["createdAt"],
+                bookmark["category"],
             ),
         )
 
@@ -108,12 +145,17 @@ def validate_bookmark(payload):
     url = str(payload.get("url", "")).strip()
     title = str(payload.get("title", "")).strip()
     parsed_url = urlparse(url)
+
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise ValueError("Enter a complete URL using http:// or https://.")
+        raise ValueError(
+            "Enter a complete URL using http:// or https://."
+        )
+
     if not title:
         raise ValueError("A bookmark title is required.")
 
     raw_tags = payload.get("tags", [])
+
     if not isinstance(raw_tags, list):
         raise ValueError("Tags must be a list.")
 
@@ -124,22 +166,47 @@ def validate_bookmark(payload):
         "description": str(payload.get("description", "")).strip(),
         "cover": str(payload.get("cover", "")).strip(),
         "note": str(payload.get("note", "")).strip(),
-        "tags": [str(tag).strip() for tag in raw_tags if str(tag).strip()],
-        "createdAt": int(payload.get("createdAt") or time.time() * 1000),
+        "tags": [
+            str(tag).strip()
+            for tag in raw_tags
+            if str(tag).strip()
+        ],
+        "createdAt": int(
+            payload.get("createdAt") or time.time() * 1000
+        ),
+        "category": str(payload.get("category") or "").strip(),
     }
 
 
 class BookmarkHandler(BaseHTTPRequestHandler):
+
     def end_headers(self):
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        origin = self.headers.get("Origin")
+
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
+        self.send_header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, OPTIONS"
+        )
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type"
+        )
         super().end_headers()
 
     def send_json(self, status, payload):
-        encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        encoded = json.dumps(
+            payload, ensure_ascii=False
+        ).encode("utf-8")
+
         self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header(
+            "Content-Type",
+            "application/json; charset=utf-8"
+        )
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
@@ -152,11 +219,15 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         if self.path == "/api/health":
             with closing(connect_database()) as connection:
                 connection.execute("SELECT 1").fetchone()
+
             self.send_json(200, {
                 "status": "ok",
-                "database": "postgresql" if DATABASE_URL else "sqlite",
+                "database": (
+                    "postgresql" if DATABASE_URL else "sqlite"
+                ),
             })
             return
+
         if self.path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
             return
@@ -167,13 +238,23 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         if self.path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
             return
+
         try:
-            content_length = int(self.headers.get("Content-Length", "0"))
+            content_length = int(
+                self.headers.get("Content-Length", "0")
+            )
+
             if content_length > 1_000_000:
-                self.send_json(413, {"error": "Request is too large"})
+                self.send_json(
+                    413, {"error": "Request is too large"}
+                )
                 return
-            payload = json.loads(self.rfile.read(content_length) or b"{}")
+
+            payload = json.loads(
+                self.rfile.read(content_length) or b"{}"
+            )
             bookmark = validate_bookmark(payload)
+
         except (json.JSONDecodeError, TypeError, ValueError) as error:
             self.send_json(400, {"error": str(error)})
             return
@@ -182,15 +263,28 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         self.send_json(201, {**bookmark, "example": False})
 
     def log_message(self, message, *args):
-        print(f"[{self.log_date_time_string()}] {message % args}")
+        print(
+            f"[{self.log_date_time_string()}] {message % args}"
+        )
 
 
 if __name__ == "__main__":
     initialize_database()
-    server = ThreadingHTTPServer((HOST, PORT), BookmarkHandler)
-    print(f"Bookmark Studio API running at http://{HOST}:{PORT}")
-    print(f"Database: {'PostgreSQL' if DATABASE_URL else 'SQLite (local fallback)'}")
+
+    server = ThreadingHTTPServer(
+        (HOST, PORT),
+        BookmarkHandler
+    )
+
+    print(
+        f"Bookmark Studio API running at http://{HOST}:{PORT}"
+    )
+    print(
+        f"Database: "
+        f"{'PostgreSQL' if DATABASE_URL else 'SQLite (local fallback)'}"
+    )
     print("Press Ctrl+C to stop.")
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
