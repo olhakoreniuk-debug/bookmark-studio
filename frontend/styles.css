@@ -157,3 +157,9 @@ input::placeholder, textarea::placeholder { color: #9ba39c; }
 .delete-bookmark:hover { background: #fce7e5; }
 .delete-bookmark:disabled { opacity: .5; cursor: wait; }
 .delete-bookmark[hidden] { display: none; }
+
+.card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.card-actions .delete-bookmark { margin-top: 0; }
+.edit-bookmark { padding: 9px 12px; border: 1px solid #b7d5c2; border-radius: 8px; background: var(--green-soft); color: var(--green); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.edit-bookmark:hover { background: #dceae1; }
+.edit-bookmark[hidden], #cancel-edit[hidden] { display: none; }
