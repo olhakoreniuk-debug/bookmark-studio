@@ -12,6 +12,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+
 
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
@@ -25,6 +28,8 @@ ALLOWED_ORIGINS = {
     if origin.strip()
 }
 DATABASE_PATH = Path(__file__).with_name("bookmarks.db")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+OWNER_GOOGLE_EMAIL = os.environ.get("OWNER_GOOGLE_EMAIL", "").strip().lower()
 
 
 def connect_database():
@@ -180,6 +185,28 @@ def validate_bookmark(payload):
 
 class BookmarkHandler(BaseHTTPRequestHandler):
 
+    def authorized(self):
+        """Verify a Google ID token server-side and restrict access to the owner."""
+        if not GOOGLE_CLIENT_ID or not OWNER_GOOGLE_EMAIL:
+            self.send_json(503, {"error": "Google sign-in is not configured."})
+            return False
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            self.send_json(401, {"error": "Google sign-in required."})
+            return False
+        try:
+            claims = id_token.verify_oauth2_token(
+                header[7:].strip(), google_requests.Request(), GOOGLE_CLIENT_ID
+            )
+            if (claims.get("email", "").lower() != OWNER_GOOGLE_EMAIL
+                    or claims.get("email_verified") is not True):
+                self.send_json(403, {"error": "This account is not authorized."})
+                return False
+        except (ValueError, Exception):
+            self.send_json(401, {"error": "Invalid or expired Google sign-in."})
+            return False
+        return True
+
     def end_headers(self):
         origin = self.headers.get("Origin")
 
@@ -193,7 +220,7 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         )
         self.send_header(
             "Access-Control-Allow-Headers",
-            "Content-Type"
+            "Content-Type, Authorization"
         )
         super().end_headers()
 
@@ -232,11 +259,16 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not found"})
             return
 
+        if not self.authorized():
+            return
         self.send_json(200, list_bookmarks())
 
     def do_POST(self):
         if urlparse(self.path).path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
+            return
+
+        if not self.authorized():
             return
 
         try:
@@ -263,6 +295,8 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         self.send_json(201, {**bookmark, "example": False})
 
     def do_DELETE(self):
+        if not self.authorized():
+            return
         path = urlparse(self.path).path
         prefix = "/api/bookmarks/"
         bookmark_id = path[len(prefix):] if path.startswith(prefix) else ""
