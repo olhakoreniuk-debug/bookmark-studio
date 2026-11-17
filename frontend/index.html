@@ -103,6 +103,13 @@
               <input id="tags" name="tags" type="text" placeholder="travel, design, inspiration" />
               <small>Separate tags with commas.</small>
             </label>
+            <label class="full-width">
+              <span>Category</span>
+              <select id="category" name="category">
+                <option value="">Uncategorized</option>
+                </select>
+              <small>Choose a category for this bookmark.</small>
+              </label>
           </div>
 
           <div class="form-footer">
@@ -122,6 +129,12 @@
             <p><span id="bookmark-count">0</span> <span id="bookmark-word">bookmarks</span> in your collection</p>
           </div>
           <span class="sort-label">Newest first</span>
+        </div>
+        <div class="category-toolbar">
+          <div id="category-filters" class="category-filters"></div>
+          <button id="new-category-button" class="secondary-button" type="button">
+            + New category
+          </button>
         </div>
         <div class="bookmark-grid" id="bookmark-list"></div>
       </section>

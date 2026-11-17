@@ -1,4 +1,14 @@
 const STORAGE_KEY = "bookmark-studio:bookmarks";
+
+const CATEGORIES_KEY = "bookmark-studio:categories";
+
+const DEFAULT_CATEGORIES = [
+  "JOB SEARCH",
+  "WORK",
+  "TECH",
+  "MUSIC",
+  "HOME"
+];
 const API_URL = window.BOOKMARK_API_URL || "http://localhost:8000/api/bookmarks";
 
 const exampleBookmark = {
@@ -12,7 +22,7 @@ const exampleBookmark = {
   createdAt: 0,
   example: true,
 };
-
+let activeCategory = "All";
 const form = document.querySelector("#bookmark-form");
 
 // The Chrome bookmarklet opens this page with ?url=...&title=...
@@ -47,6 +57,67 @@ Object.entries(validationMessages).forEach(([fieldName, message]) => {
   field.addEventListener("input", () => field.setCustomValidity(""));
 });
 
+function readCategories() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CATEGORIES_KEY));
+
+    if (Array.isArray(saved)) {
+      return saved;
+    }
+  } catch (error) {
+    console.error("Could not read categories:", error);
+  }
+
+  return [...DEFAULT_CATEGORIES];
+}
+
+function saveCategories(categories) {
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+}
+function populateCategorySelect() {
+  const select = document.querySelector("#category");
+  const selectedCategory = select.value;
+
+  select.replaceChildren(new Option("Uncategorized", ""));
+
+  readCategories().forEach((category) => {
+    select.add(new Option(category, category));
+  });
+
+  select.value = selectedCategory;
+}
+function renderCategoryFilters() {
+  const container = document.querySelector("#category-filters");
+  if (!container) return;
+
+  container.replaceChildren();
+
+  const categories = ["All", ...readCategories()];
+
+  categories.forEach((category) => {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.className = "category-filter";
+    button.textContent = category;
+
+    button.addEventListener("click", () => {
+      container.querySelectorAll(".category-filter").forEach((btn) => {
+        btn.classList.remove("active");
+      });
+
+      button.classList.add("active");
+      activeCategory = category;
+render();
+    });
+
+    if (category === "All") {
+      button.classList.add("active");
+    }
+
+    container.appendChild(button);
+  });
+}
 function readBookmarks() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -145,7 +216,8 @@ function createCard(bookmark) {
 function render() {
   const bookmarks = readBookmarks().sort((a, b) => b.createdAt - a.createdAt);
   const allBookmarks = [...bookmarks, exampleBookmark];
-  list.replaceChildren(...allBookmarks.map(createCard));
+  const visibleBookmarks = activeCategory === "All" ? allBookmarks : allBookmarks.filter((bookmark) => bookmark.category === activeCategory);
+  list.replaceChildren(...visibleBookmarks.map(createCard));
   document.querySelector("#bookmark-count").textContent = allBookmarks.length;
   document.querySelector("#bookmark-word").textContent = wordForBookmarks(allBookmarks.length);
 }
@@ -183,6 +255,7 @@ form.addEventListener("submit", async (event) => {
     cover: form.cover.value.trim(),
     note: form.note.value.trim(),
     tags: form.tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
+    category: form.elements.category.value,
     createdAt: Date.now(),
     example: false,
   };
@@ -214,5 +287,6 @@ document.querySelectorAll("[data-focus-form]").forEach((button) => {
     window.setTimeout(() => form.url.focus(), 400);
   });
 });
-
+populateCategorySelect();
+renderCategoryFilters();
 syncWithBackend();
