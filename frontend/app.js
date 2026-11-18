@@ -96,7 +96,7 @@ function renderCategoryFilters() {
 
   container.replaceChildren();
 
-  const categories = ["All", ...readCategories()];
+  const categories = ["All", ...new Set([...readCategories(), ...publicBookmarks.map((b) => b.category).filter(Boolean)])];
 
   categories.forEach((category) => {
     const button = document.createElement("button");
@@ -148,7 +148,7 @@ async function requestApi(path = "", options = {}) {
   if (!googleIdToken && options.method && options.method !== "GET") throw new Error("Sign in with Google first.");
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${googleIdToken}`, ...options.headers },
+    headers: { "Content-Type": "application/json", ...(googleIdToken ? { "Authorization": `Bearer ${googleIdToken}` } : {}), ...options.headers },
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "The bookmark API returned an error.");
@@ -156,29 +156,13 @@ async function requestApi(path = "", options = {}) {
 }
 
 async function syncWithBackend() {
+  // Never silently publish browser-only bookmarks or overwrite local data.
   try {
-    const removed = deletedIds();
-    const localBookmarks = readBookmarks().filter((bookmark) => !removed.has(bookmark.id));
-    const remoteBookmarks = await requestApi();
-    publicBookmarks = remoteBookmarks;
-    const remoteIds = new Set(remoteBookmarks.map((bookmark) => bookmark.id));
-
-    for (const bookmark of localBookmarks) {
-      if (!remoteIds.has(bookmark.id)) {
-        await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
-      }
-    }
-
-    const syncedBookmarks = localBookmarks.some((bookmark) => !remoteIds.has(bookmark.id))
-      ? await requestApi()
-      : remoteBookmarks;
-    saveLocalBookmarks(syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id)));
-    publicBookmarks = syncedBookmarks;
+    publicBookmarks = await requestApi();
+    renderCategoryFilters();
     render();
   } catch (error) {
-    console.error("Could not load bookmarks from the server:", error);
-    formMessage.textContent = "Could not load saved bookmarks from the server. Please refresh the page.";
-    render();
+    formMessage.textContent = "Could not load bookmarks: " + error.message;
   }
 }
 
@@ -340,30 +324,22 @@ form.addEventListener("submit", async (event) => {
 
   const saveButton = document.querySelector("#save-bookmark-button");
   saveButton.disabled = true;
-  let savedToBackend = false;
   try {
     await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
-    savedToBackend = true;
   } catch (error) {
-    if (isEditing) {
-      formMessage.textContent = "Could not save changes: " + error.message;
-      saveButton.disabled = false;
-      return;
-    }
-  } finally {
+    formMessage.textContent = "Could not save bookmark: " + error.message;
     saveButton.disabled = false;
+    return;
   }
-
-  const bookmarks = readBookmarks();
-  const index = bookmarks.findIndex((item) => item.id === bookmark.id);
-  if (index >= 0) bookmarks[index] = bookmark;
-  else bookmarks.push(bookmark);
-  saveLocalBookmarks(bookmarks);
-  if (savedToBackend) publicBookmarks = await requestApi();
+  saveButton.disabled = false;
+  try {
+    publicBookmarks = await requestApi();
+  } catch (error) {
+    publicBookmarks = publicBookmarks.filter((item) => item.id !== bookmark.id).concat(bookmark);
+  }
   resetEditMode();
-  formMessage.textContent = savedToBackend
-    ? (isEditing ? "Bookmark updated successfully." : "Bookmark saved to your library.")
-    : "Bookmark saved in this browser. Start the API to sync it.";
+  formMessage.textContent = isEditing ? "Bookmark updated successfully." : "Bookmark saved to your library.";
+  renderCategoryFilters();
   render();
   document.querySelector("#library-title").scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => { formMessage.textContent = ""; }, 5000);
@@ -392,12 +368,8 @@ window.handleGoogleCredential = async ({ credential }) => {
   googleIdToken = credential;
   // Do not display or upload browser-stored private data before Google sign-in.
   try {
-    const response = await fetch(`${API_URL}`, {headers: {"Authorization": `Bearer ${googleIdToken}`}});
+    const response = await fetch(`${API_URL.replace(/\\/api\\/bookmarks$/, "")}/api/me`, {headers: {"Authorization": `Bearer ${googleIdToken}`}});
     if (!response.ok) throw new Error("Google account not authorized.");
-    // Reading is public, so verify ownership with a protected write endpoint.
-    const probe = await fetch(`${API_URL}/__auth_check__`, {method: "DELETE", headers: {"Authorization": `Bearer ${googleIdToken}`}});
-    if (probe.status === 401) throw new Error("Google account not authorized.");
-    if (probe.status !== 404) throw new Error("Could not verify account.");
   } catch (error) {
     googleIdToken = null;
     window.alert("Google account not authorized: " + error.message);
@@ -415,8 +387,8 @@ document.querySelector("#signout-button").addEventListener("click", () => {
 });
 setSignedIn(false);
 render(); // Public visitors can view all server-stored bookmarks.
-requestApi().then((bookmarks) => { publicBookmarks = bookmarks; render(); }).catch((error) => console.error("Could not load public bookmarks:", error));
-if (window.BOOKMARK_GOOGLE_CLIENT_ID) {
+requestApi().then((bookmarks) => { publicBookmarks = bookmarks; renderCategoryFilters(); render(); }).catch((error) => console.error("Could not load public bookmarks:", error));
+if (window.BOOKMARK_GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
   google.accounts.id.initialize({
     client_id: window.BOOKMARK_GOOGLE_CLIENT_ID,
     callback: window.handleGoogleCredential,
@@ -426,5 +398,5 @@ if (window.BOOKMARK_GOOGLE_CLIENT_ID) {
     theme: "outline", size: "medium", text: "signin_with",
   });
 } else {
-  document.querySelector("#google-signin").textContent = "Google sign-in not configured";
+  document.querySelector("#google-signin").textContent = "Google sign-in unavailable. Refresh the page.";
 }
