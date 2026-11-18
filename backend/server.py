@@ -11,6 +11,8 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -25,6 +27,24 @@ ALLOWED_ORIGINS = {
     if origin.strip()
 }
 DATABASE_PATH = Path(__file__).with_name("bookmarks.db")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "").strip().lower()
+
+
+def verify_owner_token(authorization):
+    if not GOOGLE_CLIENT_ID or not OWNER_EMAIL:
+        return False
+    if not authorization.startswith("Bearer "):
+        return False
+    try:
+        claims = id_token.verify_oauth2_token(
+            authorization[7:], google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        return (claims.get("email_verified") is True and
+                claims.get("email", "").lower() == OWNER_EMAIL)
+    except (ValueError, Exception):
+        return False
+
 
 
 def connect_database():
@@ -215,6 +235,12 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
+    def require_owner(self):
+        if verify_owner_token(self.headers.get("Authorization", "")):
+            return True
+        self.send_json(401, {"error": "Google sign-in required."})
+        return False
+
     def do_GET(self):
         if urlparse(self.path).path == "/api/health":
             with closing(connect_database()) as connection:
@@ -232,9 +258,13 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not found"})
             return
 
+        if not self.require_owner():
+            return
         self.send_json(200, list_bookmarks())
 
     def do_POST(self):
+        if not self.require_owner():
+            return
         if urlparse(self.path).path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
             return
@@ -263,6 +293,8 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         self.send_json(201, {**bookmark, "example": False})
 
     def do_DELETE(self):
+        if not self.require_owner():
+            return
         path = urlparse(self.path).path
         prefix = "/api/bookmarks/"
         bookmark_id = path[len(prefix):] if path.startswith(prefix) else ""
