@@ -368,7 +368,7 @@ window.handleGoogleCredential = async ({ credential }) => {
   googleIdToken = credential;
   // Do not display or upload browser-stored private data before Google sign-in.
   try {
-    const response = await fetch(`${API_URL.replace(/\\/api\\/bookmarks$/, "")}/api/me`, {headers: {"Authorization": `Bearer ${googleIdToken}`}});
+    const response = await fetch(`${API_URL.slice(0, -"/api/bookmarks".length)}/api/me`, {headers: {"Authorization": `Bearer ${googleIdToken}`}});
     if (!response.ok) throw new Error("Google account not authorized.");
   } catch (error) {
     googleIdToken = null;
