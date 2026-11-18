@@ -24,6 +24,7 @@ const exampleBookmark = {
   createdAt: 0,
   example: true,
 };
+let publicBookmarks = [];
 let activeCategory = "All";
 let editingBookmark = null;
 const form = document.querySelector("#bookmark-form");
@@ -144,7 +145,7 @@ function saveLocalBookmarks(bookmarks) {
 }
 
 async function requestApi(path = "", options = {}) {
-  if (!googleIdToken) throw new Error("Sign in with Google first.");
+  if (!googleIdToken && options.method && options.method !== "GET") throw new Error("Sign in with Google first.");
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${googleIdToken}`, ...options.headers },
@@ -159,6 +160,7 @@ async function syncWithBackend() {
     const removed = deletedIds();
     const localBookmarks = readBookmarks().filter((bookmark) => !removed.has(bookmark.id));
     const remoteBookmarks = await requestApi();
+    publicBookmarks = remoteBookmarks;
     const remoteIds = new Set(remoteBookmarks.map((bookmark) => bookmark.id));
 
     for (const bookmark of localBookmarks) {
@@ -171,6 +173,7 @@ async function syncWithBackend() {
       ? await requestApi()
       : remoteBookmarks;
     saveLocalBookmarks(syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id)));
+    publicBookmarks = syncedBookmarks;
     render();
   } catch (error) {
     console.error("Could not load bookmarks from the server:", error);
@@ -186,6 +189,7 @@ async function deleteBookmark(bookmark, button) {
     await requestApi("/" + encodeURIComponent(bookmark.id), { method: "DELETE" });
     saveDeletedId(bookmark.id);
     saveLocalBookmarks(readBookmarks().filter((item) => item.id !== bookmark.id));
+    publicBookmarks = publicBookmarks.filter((item) => item.id !== bookmark.id);
     render();
   } catch (error) {
     button.disabled = false;
@@ -270,12 +274,12 @@ function createCard(bookmark) {
   });
 
   const editButton = card.querySelector(".edit-bookmark");
-  editButton.hidden = Boolean(bookmark.example);
+  editButton.hidden = Boolean(bookmark.example) || !googleIdToken;
   if (!bookmark.example) {
     editButton.addEventListener("click", () => startEditing(bookmark));
   }
   const deleteButton = card.querySelector(".delete-bookmark");
-  deleteButton.hidden = Boolean(bookmark.example);
+  deleteButton.hidden = Boolean(bookmark.example) || !googleIdToken;
   if (!bookmark.example) {
     deleteButton.addEventListener("click", () => deleteBookmark(bookmark, deleteButton));
   }
@@ -286,7 +290,7 @@ function createCard(bookmark) {
 }
 
 function render() {
-  const bookmarks = googleIdToken ? readBookmarks().sort((a, b) => b.createdAt - a.createdAt) : [];
+  const bookmarks = publicBookmarks.sort((a, b) => b.createdAt - a.createdAt);
   const allBookmarks = [...bookmarks, exampleBookmark];
   const visibleBookmarks = activeCategory === "All" ? allBookmarks : allBookmarks.filter((bookmark) => bookmark.category === activeCategory);
   list.replaceChildren(...visibleBookmarks.map(createCard));
@@ -355,6 +359,7 @@ form.addEventListener("submit", async (event) => {
   if (index >= 0) bookmarks[index] = bookmark;
   else bookmarks.push(bookmark);
   saveLocalBookmarks(bookmarks);
+  if (savedToBackend) publicBookmarks = await requestApi();
   resetEditMode();
   formMessage.textContent = savedToBackend
     ? (isEditing ? "Bookmark updated successfully." : "Bookmark saved to your library.")
@@ -375,7 +380,7 @@ renderCategoryFilters();
 const privateSections = [
   document.querySelector('section[aria-labelledby="chrome-title"]'),
   document.querySelector('section[aria-labelledby="composer-title"]'),
-  document.querySelector(".category-toolbar")
+  null // Public visitors can filter bookmarks too
 ];
 function setSignedIn(signedIn) {
   privateSections.forEach((section) => { if (section) section.hidden = !signedIn; });
@@ -387,7 +392,12 @@ window.handleGoogleCredential = async ({ credential }) => {
   googleIdToken = credential;
   // Do not display or upload browser-stored private data before Google sign-in.
   try {
-    await requestApi();
+    const response = await fetch(`${API_URL}`, {headers: {"Authorization": `Bearer ${googleIdToken}`}});
+    if (!response.ok) throw new Error("Google account not authorized.");
+    // Reading is public, so verify ownership with a protected write endpoint.
+    const probe = await fetch(`${API_URL}/__auth_check__`, {method: "DELETE", headers: {"Authorization": `Bearer ${googleIdToken}`}});
+    if (probe.status === 401) throw new Error("Google account not authorized.");
+    if (probe.status !== 404) throw new Error("Could not verify account.");
   } catch (error) {
     googleIdToken = null;
     window.alert("Google account not authorized: " + error.message);
@@ -404,7 +414,8 @@ document.querySelector("#signout-button").addEventListener("click", () => {
   render();
 });
 setSignedIn(false);
-render(); // Public visitors see only the example card.
+render(); // Public visitors can view all server-stored bookmarks.
+requestApi().then((bookmarks) => { publicBookmarks = bookmarks; render(); }).catch((error) => console.error("Could not load public bookmarks:", error));
 if (window.BOOKMARK_GOOGLE_CLIENT_ID) {
   google.accounts.id.initialize({
     client_id: window.BOOKMARK_GOOGLE_CLIENT_ID,
