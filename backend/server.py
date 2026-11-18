@@ -254,6 +254,12 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if urlparse(self.path).path == "/api/me":
+            if not self.require_owner():
+                return
+            self.send_json(200, {"authorized": True})
+            return
+
         if urlparse(self.path).path != "/api/bookmarks":
             self.send_json(404, {"error": "Not found"})
             return
