@@ -258,8 +258,7 @@ class BookmarkHandler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not found"})
             return
 
-        if not self.require_owner():
-            return
+        # Public read-only access; writes remain owner-only.
         self.send_json(200, list_bookmarks())
 
     def do_POST(self):
