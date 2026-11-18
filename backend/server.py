@@ -42,7 +42,7 @@ def verify_owner_token(authorization):
         )
         return (claims.get("email_verified") is True and
                 claims.get("email", "").lower() == OWNER_EMAIL)
-    except (ValueError, Exception):
+    except Exception:
         return False
 
 
@@ -213,7 +213,7 @@ class BookmarkHandler(BaseHTTPRequestHandler):
         )
         self.send_header(
             "Access-Control-Allow-Headers",
-            "Content-Type"
+            "Content-Type, Authorization"
         )
         super().end_headers()
 
