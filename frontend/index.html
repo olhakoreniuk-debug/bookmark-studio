@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Bookmark Studio — a private link library with notes and tags."
+      content="Bookmark Studio — a public bookmark library with owner-only editing."
     />
     <title>My Bookmarks — Bookmark Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -28,7 +28,7 @@
       <div id="google-signin"></div><button id="signout-button" type="button" hidden>Sign out</button>
       <span class="privacy-pill">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10V7a4.5 4.5 0 0 1 9 0v3m-10 0h11a1 1 0 0 1 1 1v9h-13v-9a1 1 0 0 1 1-1Z" /></svg>
-        Private library
+        Public library
       </span>
     </header>
 
@@ -96,9 +96,9 @@
               <textarea id="description" name="description" rows="2" placeholder="Briefly describe this content"></textarea>
             </label>
             <label class="full-width">
-              <span>Private note</span>
+              <span>Note</span>
               <textarea id="note" name="note" rows="3" placeholder="Why are you saving this? What should you remember?"></textarea>
-              <small>Only you can see this note.</small>
+              <small>This note is visible to everyone viewing the bookmark.</small>
             </label>
             <label class="full-width">
               <span>Tags</span>
@@ -135,7 +135,7 @@
         </div>
         <div class="category-toolbar">
           <div id="category-filters" class="category-filters"></div>
-          <button id="new-category-button" class="secondary-button" type="button">
+          <button id="new-category-button" class="secondary-button" type="button" hidden>
             + New category
           </button>
         </div>
@@ -173,7 +173,7 @@
 
     <script src="https://accounts.google.com/gsi/client"></script>
     <script src="config.js?v=20261117-2"></script>
-    <script src="app.js?v=20261117-2"></script>
+    <script src="app.js?v=20261118-3"></script>
     <script src="bookmarklet.js"></script>
   </body>
 </html>
