@@ -1,3 +1,4 @@
+let googleIdToken = null;
 const STORAGE_KEY = "bookmark-studio:bookmarks";
 
 const DELETED_KEY = "bookmark-studio:deleted-ids";
@@ -143,9 +144,10 @@ function saveLocalBookmarks(bookmarks) {
 }
 
 async function requestApi(path = "", options = {}) {
+  if (!googleIdToken) throw new Error("Sign in with Google first.");
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${googleIdToken}`, ...options.headers },
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "The bookmark API returned an error.");
@@ -284,7 +286,7 @@ function createCard(bookmark) {
 }
 
 function render() {
-  const bookmarks = readBookmarks().sort((a, b) => b.createdAt - a.createdAt);
+  const bookmarks = googleIdToken ? readBookmarks().sort((a, b) => b.createdAt - a.createdAt) : [];
   const allBookmarks = [...bookmarks, exampleBookmark];
   const visibleBookmarks = activeCategory === "All" ? allBookmarks : allBookmarks.filter((bookmark) => bookmark.category === activeCategory);
   list.replaceChildren(...visibleBookmarks.map(createCard));
@@ -315,6 +317,7 @@ previewButton.addEventListener("click", showPreview);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!googleIdToken) return;
   if (!form.reportValidity()) return;
 
   const isEditing = Boolean(editingBookmark);
@@ -369,5 +372,48 @@ document.querySelectorAll("[data-focus-form]").forEach((button) => {
 });
 populateCategorySelect();
 renderCategoryFilters();
-render(); // Show the example and cached bookmarks immediately, even while the API wakes up.
-syncWithBackend();
+const privateSections = [
+  document.querySelector('section[aria-labelledby="chrome-title"]'),
+  document.querySelector('section[aria-labelledby="composer-title"]'),
+  document.querySelector(".category-toolbar")
+];
+function setSignedIn(signedIn) {
+  privateSections.forEach((section) => { if (section) section.hidden = !signedIn; });
+  document.querySelectorAll("[data-focus-form]").forEach((button) => { button.hidden = !signedIn; });
+  document.querySelector("#signout-button").hidden = !signedIn;
+  document.querySelector("#google-signin").hidden = signedIn;
+}
+window.handleGoogleCredential = async ({ credential }) => {
+  googleIdToken = credential;
+  // Do not display or upload browser-stored private data before Google sign-in.
+  try {
+    await requestApi();
+  } catch (error) {
+    googleIdToken = null;
+    window.alert("Google account not authorized: " + error.message);
+    return;
+  }
+  setSignedIn(true);
+  render();
+  await syncWithBackend();
+};
+document.querySelector("#signout-button").addEventListener("click", () => {
+  googleIdToken = null;
+  if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+  setSignedIn(false);
+  render();
+});
+setSignedIn(false);
+render(); // Public visitors see only the example card.
+if (window.BOOKMARK_GOOGLE_CLIENT_ID) {
+  google.accounts.id.initialize({
+    client_id: window.BOOKMARK_GOOGLE_CLIENT_ID,
+    callback: window.handleGoogleCredential,
+    auto_select: false,
+  });
+  google.accounts.id.renderButton(document.querySelector("#google-signin"), {
+    theme: "outline", size: "medium", text: "signin_with",
+  });
+} else {
+  document.querySelector("#google-signin").textContent = "Google sign-in not configured";
+}
