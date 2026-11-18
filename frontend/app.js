@@ -1,3 +1,4 @@
+let googleIdToken = null;
 const STORAGE_KEY = "bookmark-studio:bookmarks";
 
 const DELETED_KEY = "bookmark-studio:deleted-ids";
@@ -23,6 +24,7 @@ const exampleBookmark = {
   createdAt: 0,
   example: true,
 };
+let publicBookmarks = [];
 let activeCategory = "All";
 let editingBookmark = null;
 const form = document.querySelector("#bookmark-form");
@@ -94,7 +96,7 @@ function renderCategoryFilters() {
 
   container.replaceChildren();
 
-  const categories = ["All", ...readCategories()];
+  const categories = ["All", ...new Set([...readCategories(), ...publicBookmarks.map((b) => b.category).filter(Boolean)])];
 
   categories.forEach((category) => {
     const button = document.createElement("button");
@@ -143,9 +145,10 @@ function saveLocalBookmarks(bookmarks) {
 }
 
 async function requestApi(path = "", options = {}) {
+  if (!googleIdToken && options.method && options.method !== "GET") throw new Error("Sign in with Google first.");
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
+    headers: { "Content-Type": "application/json", ...(googleIdToken ? { "Authorization": `Bearer ${googleIdToken}` } : {}), ...options.headers },
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "The bookmark API returned an error.");
@@ -153,27 +156,13 @@ async function requestApi(path = "", options = {}) {
 }
 
 async function syncWithBackend() {
+  // Never silently publish browser-only bookmarks or overwrite local data.
   try {
-    const removed = deletedIds();
-    const localBookmarks = readBookmarks().filter((bookmark) => !removed.has(bookmark.id));
-    const remoteBookmarks = await requestApi();
-    const remoteIds = new Set(remoteBookmarks.map((bookmark) => bookmark.id));
-
-    for (const bookmark of localBookmarks) {
-      if (!remoteIds.has(bookmark.id)) {
-        await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
-      }
-    }
-
-    const syncedBookmarks = localBookmarks.some((bookmark) => !remoteIds.has(bookmark.id))
-      ? await requestApi()
-      : remoteBookmarks;
-    saveLocalBookmarks(syncedBookmarks.filter((bookmark) => !removed.has(bookmark.id)));
+    publicBookmarks = await requestApi();
+    renderCategoryFilters();
     render();
   } catch (error) {
-    console.error("Could not load bookmarks from the server:", error);
-    formMessage.textContent = "Could not load saved bookmarks from the server. Please refresh the page.";
-    render();
+    formMessage.textContent = "Could not load bookmarks: " + error.message;
   }
 }
 
@@ -184,6 +173,7 @@ async function deleteBookmark(bookmark, button) {
     await requestApi("/" + encodeURIComponent(bookmark.id), { method: "DELETE" });
     saveDeletedId(bookmark.id);
     saveLocalBookmarks(readBookmarks().filter((item) => item.id !== bookmark.id));
+    publicBookmarks = publicBookmarks.filter((item) => item.id !== bookmark.id);
     render();
   } catch (error) {
     button.disabled = false;
@@ -268,12 +258,12 @@ function createCard(bookmark) {
   });
 
   const editButton = card.querySelector(".edit-bookmark");
-  editButton.hidden = Boolean(bookmark.example);
+  editButton.hidden = Boolean(bookmark.example) || !googleIdToken;
   if (!bookmark.example) {
     editButton.addEventListener("click", () => startEditing(bookmark));
   }
   const deleteButton = card.querySelector(".delete-bookmark");
-  deleteButton.hidden = Boolean(bookmark.example);
+  deleteButton.hidden = Boolean(bookmark.example) || !googleIdToken;
   if (!bookmark.example) {
     deleteButton.addEventListener("click", () => deleteBookmark(bookmark, deleteButton));
   }
@@ -284,7 +274,7 @@ function createCard(bookmark) {
 }
 
 function render() {
-  const bookmarks = readBookmarks().sort((a, b) => b.createdAt - a.createdAt);
+  const bookmarks = publicBookmarks.sort((a, b) => b.createdAt - a.createdAt);
   const allBookmarks = [...bookmarks, exampleBookmark];
   const visibleBookmarks = activeCategory === "All" ? allBookmarks : allBookmarks.filter((bookmark) => bookmark.category === activeCategory);
   list.replaceChildren(...visibleBookmarks.map(createCard));
@@ -315,6 +305,7 @@ previewButton.addEventListener("click", showPreview);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!googleIdToken) return;
   if (!form.reportValidity()) return;
 
   const isEditing = Boolean(editingBookmark);
@@ -333,29 +324,22 @@ form.addEventListener("submit", async (event) => {
 
   const saveButton = document.querySelector("#save-bookmark-button");
   saveButton.disabled = true;
-  let savedToBackend = false;
   try {
     await requestApi("", { method: "POST", body: JSON.stringify(bookmark) });
-    savedToBackend = true;
   } catch (error) {
-    if (isEditing) {
-      formMessage.textContent = "Could not save changes: " + error.message;
-      saveButton.disabled = false;
-      return;
-    }
-  } finally {
+    formMessage.textContent = "Could not save bookmark: " + error.message;
     saveButton.disabled = false;
+    return;
   }
-
-  const bookmarks = readBookmarks();
-  const index = bookmarks.findIndex((item) => item.id === bookmark.id);
-  if (index >= 0) bookmarks[index] = bookmark;
-  else bookmarks.push(bookmark);
-  saveLocalBookmarks(bookmarks);
+  saveButton.disabled = false;
+  try {
+    publicBookmarks = await requestApi();
+  } catch (error) {
+    publicBookmarks = publicBookmarks.filter((item) => item.id !== bookmark.id).concat(bookmark);
+  }
   resetEditMode();
-  formMessage.textContent = savedToBackend
-    ? (isEditing ? "Bookmark updated successfully." : "Bookmark saved to your library.")
-    : "Bookmark saved in this browser. Start the API to sync it.";
+  formMessage.textContent = isEditing ? "Bookmark updated successfully." : "Bookmark saved to your library.";
+  renderCategoryFilters();
   render();
   document.querySelector("#library-title").scrollIntoView({ behavior: "smooth", block: "start" });
   window.setTimeout(() => { formMessage.textContent = ""; }, 5000);
@@ -369,5 +353,50 @@ document.querySelectorAll("[data-focus-form]").forEach((button) => {
 });
 populateCategorySelect();
 renderCategoryFilters();
-render(); // Show the example and cached bookmarks immediately, even while the API wakes up.
-syncWithBackend();
+const privateSections = [
+  document.querySelector('section[aria-labelledby="chrome-title"]'),
+  document.querySelector('section[aria-labelledby="composer-title"]'),
+  null // Public visitors can filter bookmarks too
+];
+function setSignedIn(signedIn) {
+  privateSections.forEach((section) => { if (section) section.hidden = !signedIn; });
+  document.querySelectorAll("[data-focus-form]").forEach((button) => { button.hidden = !signedIn; });
+  document.querySelector("#signout-button").hidden = !signedIn;
+  document.querySelector("#google-signin").hidden = signedIn;
+}
+window.handleGoogleCredential = async ({ credential }) => {
+  googleIdToken = credential;
+  // Do not display or upload browser-stored private data before Google sign-in.
+  try {
+    const response = await fetch(`${API_URL.slice(0, -"/api/bookmarks".length)}/api/me`, {headers: {"Authorization": `Bearer ${googleIdToken}`}});
+    if (!response.ok) throw new Error("Google account not authorized.");
+  } catch (error) {
+    googleIdToken = null;
+    window.alert("Google account not authorized: " + error.message);
+    return;
+  }
+  setSignedIn(true);
+  render();
+  await syncWithBackend();
+};
+document.querySelector("#signout-button").addEventListener("click", () => {
+  googleIdToken = null;
+  if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+  setSignedIn(false);
+  render();
+});
+setSignedIn(false);
+render(); // Public visitors can view all server-stored bookmarks.
+requestApi().then((bookmarks) => { publicBookmarks = bookmarks; renderCategoryFilters(); render(); }).catch((error) => console.error("Could not load public bookmarks:", error));
+if (window.BOOKMARK_GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
+  google.accounts.id.initialize({
+    client_id: window.BOOKMARK_GOOGLE_CLIENT_ID,
+    callback: window.handleGoogleCredential,
+    auto_select: false,
+  });
+  google.accounts.id.renderButton(document.querySelector("#google-signin"), {
+    theme: "outline", size: "medium", text: "signin_with",
+  });
+} else {
+  document.querySelector("#google-signin").textContent = "Google sign-in unavailable. Refresh the page.";
+}
